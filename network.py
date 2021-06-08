@@ -14,16 +14,18 @@ class Block(torch.nn.Module):
         self.output_channel = output_channel
         self.resolution = resolution
         self.conv1 = torch.nn.Conv2d(input_channel, output_channel, kernel_size=3, padding=2)
+        self.relu1 = torch.nn.ReLU()
         self.bn = torch.nn.BatchNorm2d(output_channel)
         self.conv2 = torch.nn.Conv2d(output_channel, output_channel, kernel_size=3, stride=2)
-        self.relu = torch.nn.ReLU()
+        self.relu2 = torch.nn.ReLU()
         self.architecture = architecture
     def forward(self, x):
         if self.architecture == 'resnet':
             x = self.conv1(x)
+            x = self.relu1(x)
             x = self.bn(x)
             x = self.conv2(x)
-            x = self.relu(x)
+            x = self.relu2(x)
         else:
             x = self.conv1(x)
             x = self.bn(x)
