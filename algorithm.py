@@ -22,10 +22,10 @@ learning_steps_per_epoch = 1000
 replay_memory_size = 2000 # num of replays saved
 
 # NN learning settings
-batch_size = 16
+batch_size = 12
 
 # Training regime
-test_episodes_per_epoch = 1
+test_episodes_per_epoch = 1000
 
 # Other parameters
 frame_repeat = 12
@@ -49,7 +49,12 @@ if torch.cuda.is_available():
 else:
     DEVICE = torch.device('cpu')
 
-
+# def get_reward(game_state):
+#     misc = game_state.game_variables
+#     #  reward setting
+#     health_reward = 10 * (misc[1] - prev_misc[1])
+#     kill_reward = 1000 * (misc[2] - prev_misc[2])
+#     return health_reward + kill_reward
 def preprocess(img):
     """Down samples image to resolution"""
     img = skimage.transform.resize(img, resolution)
@@ -81,15 +86,28 @@ def test(game, agent):
 
     for test_episode in trange(test_episodes_per_epoch, leave=False):
         game.new_episode()
-
+        episode_rewards = 0
+        misc = [50, 100, 0]
         while not game.is_episode_finished():
-            state = preprocess(game.get_state().screen_buffer)
-            best_action_index = agent.get_action(state)
-            game.make_action(actions[best_action_index], frame_repeat)
-            # for _ in range(frame_repeat):
-            #     game.advance_action()
+            game_state = game.get_state()
+            prev_misc = game_state.game_variables
+            state = preprocess(game_state.screen_buffer)
 
-        r = game.get_total_reward()
+            #  reward setting
+            health_reward = 10 * (prev_misc[1] - misc[1])
+            kill_reward = 1000 * (prev_misc[2] - misc[2])
+            reward = health_reward + kill_reward
+
+            best_action_index = agent.get_action(state)
+            game.set_action(actions[best_action_index])
+            misc = game_state.game_variables
+            # game.make_action(actions[best_action_index], frame_repeat)
+            episode_rewards += reward
+            for _ in range(frame_repeat):
+                game.advance_action()
+
+        r = game.get_total_reward() + episode_rewards
+        print("Total score: ", r)
         test_scores.append(r)
 
     test_scores = np.array(test_scores)
@@ -106,6 +124,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
 
     start_time = time()
     prev_misc = [50, 100, 0] # Default state
+    episode_rewards = 0
     for epoch in range(num_epochs):
         game.new_episode()
         train_scores = []
@@ -117,13 +136,13 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             state = preprocess(game_state.screen_buffer)
             misc = game_state.game_variables
             #  reward setting
-            health_reward = 10* (misc[1] - prev_misc[1])
+            health_reward = 10 * (misc[1] - prev_misc[1])
             kill_reward = 1000 * (misc[2] - prev_misc[2])
             ANMO2_reward = (misc[0] - prev_misc[0])
             prev_misc = game_state.game_variables
             action = agent.get_action(state)
             reward = game.make_action(actions[action], frame_repeat) + health_reward + kill_reward + ANMO2_reward
-
+            episode_rewards += reward
             done = game.is_episode_finished()
 
             if not done:
@@ -140,8 +159,11 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
                 agent.train()
 
             if done:
-                train_scores.append(game.get_total_reward())
+                # train_scores.append(game.get_total_reward())
+                train_scores.append(episode_rewards)
                 game.new_episode()
+                episode_rewards = 0
+
 
             global_step += 1
 
@@ -253,6 +275,7 @@ if __name__ == '__main__':
     # Initialize game and actions
     game = create_simple_game()
     n = game.get_available_buttons_size()
+    print(game.get_available_buttons())
     actions = [list(a) for a in it.product([0, 1], repeat=n)]
 
     # Initialize our agent with the set parameters
@@ -274,19 +297,19 @@ if __name__ == '__main__':
     game.set_window_visible(True)
     game.set_mode(Mode.ASYNC_PLAYER)
     game.init()
-
-    for _ in range(episodes_to_watch):
-        game.new_episode()
-        while not game.is_episode_finished():
-            state = preprocess(game.get_state().screen_buffer)
-            best_action_index = agent.get_action(state)
-
-            # Instead of make_action(a, frame_repeat) in order to make the animation smooth
-            game.set_action(actions[best_action_index])
-            for _ in range(frame_repeat):
-                game.advance_action()
-
-        # Sleep between episodes
-        sleep(1.0)
-        score = game.get_total_reward()
-        print("Total score: ", score)
+    test(game, agent)
+    # for _ in range(episodes_to_watch):
+    #     game.new_episode()
+    #     while not game.is_episode_finished():
+    #         state = preprocess(game.get_state().screen_buffer)
+    #         best_action_index = agent.get_action(state)
+    #
+    #         # Instead of make_action(a, frame_repeat) in order to make the animation smooth
+    #         game.set_action(actions[best_action_index])
+    #         for _ in range(frame_repeat):
+    #             game.advance_action()
+    #
+    #     # Sleep between episodes
+    #     sleep(1.0)
+    #     score = game.get_total_reward()
+    #     print("Total score: ", score)
