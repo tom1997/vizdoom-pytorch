@@ -12,24 +12,26 @@ from time import sleep, time
 from collections import deque
 from tqdm import trange
 from tensorboardX import SummaryWriter
-from network import Network
+from network import DuelQNet
 
 # Q-learning settings
 learning_rate = 0.00025
 discount_factor = 0.99
 train_epochs = 10000
-learning_steps_per_epoch = 1000
-replay_memory_size = 2000 # num of replays saved
+learning_steps_per_epoch = 2000
+replay_memory_size = 20000 # num of replays saved
 
 # NN learning settings
-batch_size = 12
+batch_size = 64
 
 # Training regime
 test_episodes_per_epoch = 1000
+# Freq to perform training
+# freq = 4
 
 # Other parameters
 frame_repeat = 12
-resolution = (160, 120)
+resolution = (128, 96)
 episodes_to_watch = 1000
 
 model_savefile = "./model-doom-variable.pth"
@@ -38,6 +40,7 @@ load_model = False
 skip_learning = False
 
 # Configuration file path
+
 # config_file_path = "../../../scenarios/simpler_basic.cfg"
 # config_file_path = "../../../scenarios/rocket_basic.cfg"
 config_file_path = "../../../scenarios/basic_2.cfg"
@@ -73,6 +76,7 @@ def create_simple_game():
     # game.set_screen_format(vzd.ScreenFormat.RGB24)
     game.set_screen_format(vzd.ScreenFormat.GRAY8)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
+    # game.set_screen_resolution(vzd.ScreenResolution.RES_640X360)
     game.init()
     print("Doom initialized.")
 
@@ -148,7 +152,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             if not done:
                 next_state = preprocess(game_state.screen_buffer)
             else:
-                next_state = np.zeros((1, 160, 120)).astype(np.float32)
+                next_state = np.zeros((1, 128, 96)).astype(np.float32)
                 prev_misc = [50, 100, 0]
 
 
@@ -205,8 +209,8 @@ class DQNAgent:
 
         else:
             print("Initializing new model")
-            self.q_net = Network(1, action_size, resolution[0]).to(DEVICE)
-            self.target_net = Network(1, action_size, resolution[0]).to(DEVICE)
+            self.q_net = DuelQNet(action_size).to(DEVICE)
+            self.target_net = DuelQNet(action_size).to(DEVICE)
 
         self.opt = optim.Adam(self.q_net.parameters(), lr=self.lr)
 
@@ -267,7 +271,7 @@ class DQNAgent:
 
 def summary_writer(actions_length, x=torch.rand(64, 1, 30, 45)):
     with torch.no_grad():
-        model = Network(1, actions_length, resolution[0]).to(DEVICE)
+        model = DuelQNet(1, actions_length).to(DEVICE)
     with SummaryWriter(comment='DuelQNet') as net:
         net.add_graph(model, x)
 
