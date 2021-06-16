@@ -162,8 +162,8 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
 
             if epoch_step > agent.batch_size:
                 td_error, epsilon = agent.train()
-                writer.add_scalar("TD Error", td_error, global_step)
-                writer.add_scalar("epsilon", epsilon, global_step)
+                writer.add_scalar("training\TD Error", td_error, global_step)
+                writer.add_scalar("training\epsilon", epsilon, global_step)
             if done:
                 # train_scores.append(game.get_total_reward())
                 train_scores.append(episode_rewards)
@@ -178,11 +178,12 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
         kill_count = np.array(kill_count)
         print("Results: mean: %.1f +/- %.1f," % (train_scores.mean(), train_scores.std()),
               "min: %.1f," % train_scores.min(), "max: %.1f," % train_scores.max())
-        writer.add_scalar("mean", train_scores.mean(), global_step)
-        writer.add_scalar("std", train_scores.mean(), global_step)
-        writer.add_scalar("min", train_scores.mean(), global_step)
-        writer.add_scalar("max", train_scores.mean(), global_step)
-        writer.add_scalar("average killing Count", kill_count.mean(), global_step)
+        writer.add_scalar("performance/mean", train_scores.mean(), global_step)
+        writer.add_scalar("performance/std", train_scores.mean(), global_step)
+        writer.add_scalar("performance/min", train_scores.mean(), global_step)
+        writer.add_scalar("performance/max", train_scores.mean(), global_step)
+        writer.add_scalar("performance/average killing Count", kill_count.mean(), global_step)
+
         # test(game, agent)
         if save_model:
             print("Saving the network weights to:", model_savefile)
