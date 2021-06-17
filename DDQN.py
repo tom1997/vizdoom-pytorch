@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import random
-import itertools as it
+import time
 import skimage.transform
 from tensorboardX import SummaryWriter
 
@@ -41,19 +41,21 @@ episodes_to_watch = 10
 # model_savefile = "./model-doom_03.pth"
 # model_savefile = "./model-doom_dtc.pth"
 # model_savefile = "./model-doom_dtc2.pth"
-model_savefile = "./model-doom_dtl.pth"
+# model_savefile = "./model-doom_dtl.pth"
+# model_savefile = "./model-doom_dtl2.pth" # Set epsilon decay=0.999996
+model_savefile = "./model-doom_dtl3.pth" # Added reward shaping on 2
 writer = SummaryWriter("log/" + model_savefile[:-4])
 save_model = True
 load_model = False
 skip_learning = False
 
 # Configuration file path
-# config_file_path = "../scenarios/simpler_basic.cfg"
-# config_file_path = "../scenarios/rocket_basic.cfg"
-# config_file_path = "../scenarios/basic.cfg"
-# config_file_path = "../scenarios/basic_3.cfg"
-# config_file_path = "../scenarios/defend_the_center.cfg"
-config_file_path = "../scenarios/defend_the_line.cfg"
+# config_file_path = "../../scenarios/simpler_basic.cfg"
+# config_file_path = "../../scenarios/rocket_basic.cfg"
+# config_file_path = "../../scenarios/basic.cfg"
+# config_file_path = "../../scenarios/basic_3.cfg"
+# config_file_path = "../../scenarios/defend_the_center.cfg"
+config_file_path = "../../scenarios/defend_the_line.cfg"
 
 
 # Uses GPU if available
@@ -143,9 +145,9 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             state = preprocess(game_state.screen_buffer)
             misc = game_state.game_variables
             #  reward setting
-            health_reward = 0 * (misc[1] - prev_misc[1])
-            kill_reward = 0 * (misc[2] - prev_misc[2])
-            ANMO2_reward = 0 * (misc[0] - prev_misc[0])
+            health_reward = 0.01 * (misc[1] - prev_misc[1])
+            kill_reward = 0.5 * (misc[2] - prev_misc[2])
+            ANMO2_reward = 0.01 * (misc[0] - prev_misc[0])
 
             action = agent.get_action(state)
             reward = game.make_action(actions[action], frame_repeat) + health_reward + kill_reward + ANMO2_reward
@@ -162,8 +164,8 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
 
             if epoch_step > agent.batch_size:
                 td_error, epsilon = agent.train()
-                writer.add_scalar("training\TD Error", td_error, global_step)
-                writer.add_scalar("training\epsilon", epsilon, global_step)
+                writer.add_scalar("training/TD Error", td_error, global_step)
+                writer.add_scalar("training/epsilon", epsilon, global_step)
             if done:
                 # train_scores.append(game.get_total_reward())
                 train_scores.append(episode_rewards)
@@ -182,8 +184,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
         writer.add_scalar("performance/std", train_scores.mean(), global_step)
         writer.add_scalar("performance/min", train_scores.mean(), global_step)
         writer.add_scalar("performance/max", train_scores.mean(), global_step)
-        writer.add_scalar("performance/average killing Count", kill_count.mean(), global_step)
-
+        writer.add_scalar("performance/average killcount", kill_count.mean(), global_step)
         # test(game, agent)
         if save_model:
             print("Saving the network weights to:", model_savefile)
@@ -254,7 +255,7 @@ class DuelQNet(nn.Module):
 
 class DQNAgent:
     def __init__(self, action_size, memory_size, batch_size, discount_factor, 
-                 lr, load_model, epsilon=1, epsilon_decay=0.9996, epsilon_min=0.1):
+                 lr, load_model, epsilon=1, epsilon_decay=0.999996, epsilon_min=0.1):
         self.action_size = action_size
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
@@ -367,6 +368,7 @@ if __name__ == '__main__':
         game.new_episode()
         prev_misc = [50, 100, 0]
         episode_rewards = 0
+        time_start = time()
         while not game.is_episode_finished():
             game_state = game.get_state()
             misc = game_state.game_variables
@@ -376,7 +378,7 @@ if __name__ == '__main__':
             # kill_reward = 0.1 * (misc[2] - prev_misc[2])
             # ANMO2_reward = 0.0001 * (misc[0] - prev_misc[0])
             health_reward = 0 * (misc[1] - prev_misc[1])
-            kill_reward = 0 * (misc[2] - prev_misc[2])
+            kill_reward = 1 * (misc[2] - prev_misc[2])
             ANMO2_reward = 0 * (misc[0] - prev_misc[0])
             reward = health_reward + kill_reward + ANMO2_reward
 
@@ -387,8 +389,8 @@ if __name__ == '__main__':
             episode_rewards += reward
             for _ in range(frame_repeat):
                 game.advance_action()
-
+        time_end = time()
         # Sleep between episodes
         sleep(1.0)
         score = game.get_total_reward() + episode_rewards
-        print("Total score: ", score)
+        print("Total score: ", score, "Living time: ",  time_end - time_start, "Killcount: ", misc[2])
