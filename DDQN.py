@@ -181,9 +181,9 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
         print("Results: mean: %.1f +/- %.1f," % (train_scores.mean(), train_scores.std()),
               "min: %.1f," % train_scores.min(), "max: %.1f," % train_scores.max())
         writer.add_scalar("performance/mean", train_scores.mean(), global_step)
-        writer.add_scalar("performance/std", train_scores.mean(), global_step)
-        writer.add_scalar("performance/min", train_scores.mean(), global_step)
-        writer.add_scalar("performance/max", train_scores.mean(), global_step)
+        writer.add_scalar("performance/std", train_scores.std(), global_step)
+        writer.add_scalar("performance/min", train_scores.min(), global_step)
+        writer.add_scalar("performance/max", train_scores.max(), global_step)
         writer.add_scalar("performance/average killcount", kill_count.mean(), global_step)
         # test(game, agent)
         if save_model:
