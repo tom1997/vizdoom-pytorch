@@ -39,14 +39,19 @@ frame_repeat = 4
 resolution = (84, 84)
 episodes_to_watch = 10
 # model_savefile = "./model-doom_03.pth"
+# model_savefile = "./model-doom_map04_0.pth"
 # model_savefile = "./model-doom_dtc.pth"
 # model_savefile = "./model-doom_dtc2.pth"
+# model_savefile = "./model-doom_dtl_origin.pth"
 # model_savefile = "./model-doom_dtl.pth"
 # model_savefile = "./model-doom_dtl2.pth" # Set epsilon decay=0.999996
-model_savefile = "./model-doom_dtl3.pth" # Added reward shaping on 2 : reward cannot be large
+# model_savefile = "./model-doom_dtl3.pth" # Added reward shaping on 2 : reward cannot be large
 model_savefile = "./model-doom_dtl4.pth" # Added reward shaping on 2
+# model_savefile = "./model-doom_dtl5.pth" # Revised 2
 writer = SummaryWriter("log/" + model_savefile[:-4])
-weights = [0, 0.01, 0.5] # AMMO2 Health Killcount
+# weights = [0, 0, 0] # AMMO2 Health Killcount
+# weights = [0.005, 0.02, 0.15] # AMMO2 Health Killcount
+weights = [0, 0.1, 0.05] # AMMO2 Health Killcount
 
 save_model = True
 load_model = False
@@ -57,8 +62,10 @@ skip_learning = False
 # config_file_path = "../../scenarios/rocket_basic.cfg"
 # config_file_path = "../../scenarios/basic.cfg"
 # config_file_path = "../../scenarios/basic_3.cfg"
+# config_file_path = "../../scenarios/basic_map4_0.cfg"
 # config_file_path = "../../scenarios/defend_the_center.cfg"
 config_file_path = "../../scenarios/defend_the_line.cfg"
+# config_file_path = "../../scenarios/defend_the_line_origin.cfg"
 def reward_weight(game_state, weights=weights):
     weights = np.array(weights)
     game_state = np.array(game_state)
@@ -110,7 +117,7 @@ def test(game, agent):
             misc = game_state.game_variables
             state = preprocess(game.get_state().screen_buffer)
 
-            intrinsic_reward = reward_weight(diff(misc, prev_misc))
+            intrinsic_reward = reward_weight(diff(prev_misc, misc))
             reward = intrinsic_reward
 
             best_action_index = agent.get_action(state)
@@ -150,7 +157,7 @@ def run(game, agent, actions, num_epochs, frame_repeat, steps_per_epoch=2000):
             state = preprocess(game_state.screen_buffer)
             misc = game_state.game_variables
             #  reward setting
-            intrinsic_reward = reward_weight(diff(misc, prev_misc))
+            intrinsic_reward = reward_weight(diff(prev_misc, misc))
             prev_misc = misc
             action = agent.get_action(state)
             reward = game.make_action(actions[action], frame_repeat) + intrinsic_reward
@@ -380,7 +387,7 @@ if __name__ == '__main__':
             # health_reward = 0.001 * (misc[1] - prev_misc[1])
             # kill_reward = 0.1 * (misc[2] - prev_misc[2])
             # ANMO2_reward = 0.0001 * (misc[0] - prev_misc[0])
-            intrinsic_reward = reward_weight(diff(misc, prev_misc))
+            intrinsic_reward = reward_weight(diff(prev_misc, misc))
             reward = intrinsic_reward
 
             best_action_index = agent.get_action(state)
