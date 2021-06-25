@@ -42,37 +42,44 @@ stack_size = 4 # We stack 4 frames
 # Initialize deque with zero-images one array for each image
 stacked_frames  =  deque([np.zeros(resolution, dtype=np.int32) for i in range(stack_size)], maxlen=4)
 episodes_to_watch = 10
-# model_savefile = "./model-doom_03.pth"
-# model_savefile = "./model-doom_dtc.pth"
-# model_savefile = "./model-doom_dtc2.pth"
+# model_savefile = "./model-doom_dtc-per.pth"
+# model_savefile = "./model-doom_dtc_per_rnd.pth"
+model_savefile = "../model-doom_dtc2.pth"
 # model_savefile = "./model-doom_dtl.pth"
-# model_savefile = "./model-doom_dtl2.pth" # Set epsilon decay=0.999996
+# model_savefile = "../model-doom_dtl_origin.pth" # Set epsilon decay=0.999996
+# model_savefile = "./model-doom_dtc_per_rnd2.pth" # modified to sum and clamp in [-1 1]
 #model_savefile = "./model-doom_dtl3.pth" # Added reward shaping on 2 : reward cannot be large
 #model_savefile = "./model-doom-PER.pth" # Added per replays
 # model_savefile = "./model-doom_dtl_per.pth"
-model_savefile = "./model-doom_dtl_per_rnd.pth"
+# model_savefile = "./model-doom_dtl_per_rnd.pth"
 # model_savefile = "./model-doom-PER-formal.pth" # 之前的代码有问题，现在成功使用了IS_weight
 #model_savefile = "./model-doom-origin.pth" # origin
-# model_savefile = "./model-doom_02_rnd_per.pth"
+# model_savefile = "./dtc_rnd_per2.pth" # modified to mean
+# model_savefile = "./dtc_rnd_per3.pth" # init fixed RND
+# model_savefile = "./dtc_rnd_per4.pth" # Fixed opt step
+
+# model_savefile = "./map02-per-rnd.pth" # Fixed opt step
+# model_savefile ="./model-doom_02_rnd_per2.pth"
 writer = SummaryWriter("log/" + model_savefile[:-4])
+# weights = [0, 0, 0] # AMMO2 Health Killcount
 weights = [0, 0.01, 0.5] # AMMO2 Health Killcount
 
-save_model = True
-load_model = False
-skip_learning = False
+# save_model = True
+# load_model = False
+# skip_learning = False
 
-# save_model = False
-# load_model = True
-# skip_learning = True
+save_model = False
+load_model = True
+skip_learning = True
 
 # Configuration file path
 # config_file_path = "../../scenarios/simpler_basic.cfg"
 # config_file_path = "../../scenarios/rocket_basic.cfg"
 # config_file_path = "../../scenarios/basic.cfg"
 # config_file_path = "../../scenarios/basic_3.cfg"
-# config_file_path = "../../scenarios/defend_the_center.cfg"
+config_file_path = "../../../scenarios/defend_the_center.cfg"
 # config_file_path = "../../../scenarios/basic_2.cfg"
-config_file_path = "../../../scenarios/defend_the_line.cfg"
+# config_file_path = "../../../scenarios/defend_the_line.cfg"
 def reward_weight(game_state, weights=weights):
     weights = np.array(weights)
     game_state = np.array(game_state)
@@ -132,8 +139,8 @@ def test(game, agent):
             prev_misc = game_state.game_variables
 
             episode_rewards += reward
-        # r = game.get_total_reward()
-        r = game.get_total_reward() + episode_rewards
+        r = game.get_total_reward()
+        # r = game.get_total_reward() + episode_rewards
         test_scores.append(r)
 
     test_scores = np.array(test_scores)
@@ -249,10 +256,13 @@ class RND(nn.Module):
             nn.ReLU()
         )
 
-        self.state_fc = nn.Sequential(
+        self.fc1 = nn.Sequential(
             nn.Linear(4096, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
+            nn.ReLU()
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(512, 512),
+            nn.ReLU()
         )
     def forward(self, x):
         x = self.conv1(x)
@@ -260,7 +270,8 @@ class RND(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         x = x.view(-1, 4096)
-        x = self.state_fc(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
         return x
 
 class DuelQNet(nn.Module):
@@ -501,7 +512,7 @@ class DQNAgent:
         idx = row_idx, actions
         states = torch.from_numpy(states).float().to(DEVICE)
         action_values = self.q_net(states)[idx].float().to(DEVICE)
-        fixed_rnd = self.fixedz(states)
+        fixed_rnd = self.fixedz(states).detach()
         rnd = self.z(states)
         self.RNDopt.zero_grad()
         self.opt.zero_grad()
@@ -514,14 +525,14 @@ class DQNAgent:
         agent.memory.batch_update(tree_idx, absolute_errors)
         td_error.backward()
         RND_reward.backward()
-
+        self.RNDopt.step()
         self.opt.step()
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
         else:
             self.epsilon = self.epsilon_min
-        return td_error, self.epsilon, RND_reward
+        return td_error, self.epsilon, RND_reward.clamp(-1.0, 1.0)
 
 
 def stack_frames(stacked_frames, state, is_new_episode):
@@ -628,7 +639,7 @@ if __name__ == '__main__':
 
         print("======================================")
         print("Training finished. It's time to watch!")
-
+    test(game, agent)
     # Reinitialize the game with window visible
     game.close()
     game.set_window_visible(True)
@@ -662,6 +673,6 @@ if __name__ == '__main__':
         time_end = time()
         # Sleep between episodes
         sleep(1.0)
-        score = game.get_total_reward() + episode_rewards
+        score = game.get_total_reward()
         print("Total score: ", score, "Living time: ",  time_end - time_start, "Killcount: ", misc[2])
 
